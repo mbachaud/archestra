@@ -483,6 +483,19 @@ export function ChatMessages({
       (chatError) => chatError.error.message === liveErrorMessage,
     );
 
+  // Render-once gate for the "Sensitive context below" boundary divider.
+  // toolPartMatchesUnsafeContextBoundary intentionally falls back to toolName
+  // when toolCallId does not match (defensive when an explicit toolCallId is
+  // missing). Without this gate, repeated calls to the same tool emit a
+  // divider after each match. Predicate stays permissive; this gate ensures
+  // a single emission at the first matching part.
+  let unsafeContextDividerEmitted = false;
+  const claimUnsafeContextDivider = (): boolean => {
+    if (unsafeContextDividerEmitted) return false;
+    unsafeContextDividerEmitted = true;
+    return true;
+  };
+
   return (
     <>
       <Conversation
@@ -579,6 +592,7 @@ export function ChatMessages({
                           dividerRef: unsafeBoundaryRef,
                           unsafeContextBoundary,
                           canReadToolPolicy: !!canReadToolPolicy,
+                          claimUnsafeContextDivider,
                           renderedPart: (
                             <CompactToolGroup
                               key={getCompactGroupKey(
@@ -1091,6 +1105,7 @@ export function ChatMessages({
                             dividerRef: unsafeBoundaryRef,
                             unsafeContextBoundary,
                             canReadToolPolicy: !!canReadToolPolicy,
+                            claimUnsafeContextDivider,
                             renderedPart: (
                               <MessageTool
                                 part={part}
@@ -1179,6 +1194,7 @@ export function ChatMessages({
                               dividerRef: unsafeBoundaryRef,
                               unsafeContextBoundary,
                               canReadToolPolicy: !!canReadToolPolicy,
+                              claimUnsafeContextDivider,
                               renderedPart: (
                                 <MessageTool
                                   key={`${message.id}-${tcId}`}
@@ -1253,6 +1269,7 @@ export function ChatMessages({
                               dividerRef: unsafeBoundaryRef,
                               unsafeContextBoundary,
                               canReadToolPolicy: !!canReadToolPolicy,
+                              claimUnsafeContextDivider,
                               renderedPart: (
                                 <MessageTool
                                   part={part}
@@ -2109,6 +2126,7 @@ function renderPartWithUnsafeContextDivider({
   dividerRef,
   unsafeContextBoundary,
   canReadToolPolicy,
+  claimUnsafeContextDivider,
 }: {
   partKey: string;
   part: DynamicToolUIPart | ToolUIPart;
@@ -2116,6 +2134,7 @@ function renderPartWithUnsafeContextDivider({
   dividerRef: React.Ref<HTMLDivElement>;
   unsafeContextBoundary?: archestraApiTypes.GetInteractionResponses["200"]["unsafeContextBoundary"];
   canReadToolPolicy: boolean;
+  claimUnsafeContextDivider: () => boolean;
 }) {
   if (!canReadToolPolicy) {
     return renderedPart;
@@ -2138,6 +2157,10 @@ function renderPartWithUnsafeContextDivider({
     return renderedPart;
   }
 
+  if (!claimUnsafeContextDivider()) {
+    return renderedPart;
+  }
+
   return (
     <Fragment key={`${partKey}-unsafe-context-boundary`}>
       {renderedPart}
@@ -2153,6 +2176,7 @@ function renderCompactGroupWithUnsafeContextDivider({
   dividerRef,
   unsafeContextBoundary,
   canReadToolPolicy,
+  claimUnsafeContextDivider,
 }: {
   partKey: string;
   parts: Array<DynamicToolUIPart | ToolUIPart>;
@@ -2160,6 +2184,7 @@ function renderCompactGroupWithUnsafeContextDivider({
   dividerRef: React.Ref<HTMLDivElement>;
   unsafeContextBoundary?: archestraApiTypes.GetInteractionResponses["200"]["unsafeContextBoundary"];
   canReadToolPolicy: boolean;
+  claimUnsafeContextDivider: () => boolean;
 }) {
   if (!canReadToolPolicy) {
     return renderedPart;
@@ -2183,6 +2208,10 @@ function renderCompactGroupWithUnsafeContextDivider({
       toolPartMatchesUnsafeContextBoundary(part, resolvedUnsafeContextBoundary),
     )
   ) {
+    return renderedPart;
+  }
+
+  if (!claimUnsafeContextDivider()) {
     return renderedPart;
   }
 

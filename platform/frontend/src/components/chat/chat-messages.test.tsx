@@ -821,6 +821,79 @@ describe("ChatMessages", () => {
     expect(screen.getAllByText("Sensitive context below")).toHaveLength(1);
   });
 
+  it("renders the sensitive-context divider only once across multiple turns calling the same tool", () => {
+    // The same MCP tool is called in two separate assistant turns. The
+    // boundary identifies the first call by toolCallId; the toolName fallback
+    // in toolPartMatchesUnsafeContextBoundary (kept as defensive behaviour
+    // for missing toolCallId) ALSO matches the second call. Without a
+    // render-once gate, the orange "Sensitive context below" divider was
+    // emitted once per matching tool result, stacking on later turns.
+    const messages = [
+      {
+        id: "user-1",
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            text: "Please run the print_archestra_test tool.",
+          },
+        ],
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-internal-dev-test-server__print_archestra_test",
+            toolCallId: "call-1",
+            state: "output-available",
+            input: {},
+            output: { content: "ARCHESTRA_TEST = first" },
+          },
+        ],
+      },
+      {
+        id: "user-2",
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            text: "Please run the print_archestra_test tool.",
+          },
+        ],
+      },
+      {
+        id: "assistant-2",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-internal-dev-test-server__print_archestra_test",
+            toolCallId: "call-2",
+            state: "output-available",
+            input: {},
+            output: { content: "ARCHESTRA_TEST = second" },
+          },
+        ],
+      },
+    ] as UIMessage[];
+
+    render(
+      <ChatMessages
+        conversationId="conv-1"
+        messages={messages}
+        status="ready"
+        unsafeContextBoundary={{
+          kind: "tool_result",
+          reason: "tool_result_marked_untrusted",
+          toolCallId: "call-1",
+          toolName: "internal-dev-test-server__print_archestra_test",
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("Sensitive context below")).toHaveLength(1);
+  });
+
   it("keeps an expanded compact tool panel open when later tool calls append to the same message", () => {
     const initialMessages = [
       {
